@@ -88,14 +88,14 @@ public struct CascableCoreVersion: Hashable, Comparable, CustomStringConvertible
 
     /// Returns a display-appropriate string representation of the version. Will drop the bugfix version if it's zero
     /// (so version 5.0.0 will return "5.0").
-    var displayValue: String {
+    public var displayValue: String {
         if bugFix > 0 { return "\(major).\(minor).\(bugFix)" }
         return "\(major).\(minor)"
     }
 
     /// Returns a "strict" display-appropriate string representation of the version. Will always include all
     /// components (so version 5.0.0 will return "5.0.0").
-    var strictDisplayValue: String {
+    public var strictDisplayValue: String {
         return "\(major).\(minor).\(bugFix)"
     }
 }
@@ -214,10 +214,23 @@ enum DecodingError: Error {
 
 extension CascableCoreVersion: Codable {
 
+    enum ComponentCodingKeys: CodingKey {
+        case major
+        case minor
+        case bugFix
+    }
+
     public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let value = try container.decode(String.self)
-        try self.init(stringValue: value)
+        do {
+            let container = try decoder.singleValueContainer()
+            let value = try container.decode(String.self)
+            try self.init(stringValue: value)
+        } catch {
+            let container = try decoder.container(keyedBy: ComponentCodingKeys.self)
+            self.init(try container.decode(Int.self, forKey: .major),
+                      try container.decode(Int.self, forKey: .minor),
+                      try container.decode(Int.self, forKey: .bugFix))
+        }
     }
 
     public func encode(to encoder: Encoder) throws {
