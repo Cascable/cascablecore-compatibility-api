@@ -182,7 +182,7 @@ public struct CascableCoreSupportedCamera: Hashable, CustomStringConvertible {
         public static let videoRecording: Feature = "video-recording"
         /// The camera supports access to the camera's storage for browsing and transferring images.
         public static let storageAccess: Feature = "storage-access"
-        // The camera supports access to RAW images.
+        /// The camera supports access to RAW images.
         public static let rawImageAccess: Feature = "raw-image-access"
     }
 
