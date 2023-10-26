@@ -84,8 +84,8 @@ final class CascableCoreCompatibilityAPITests: XCTestCase {
     }
 
     func testCodableRoundtrip() throws {
-        let testCamera = CascableCoreSupportedCamera(
-            modelName: "Foto XTREME", 
+        var testCamera = CascableCoreSupportedCamera(
+            modelName: "Foto XTREME",
             manufacturer: "Cascable",
             additionalSearchTerms: ["extreme", "extreem"],
             cascableCoreVersionsRequired: [.network: .init(5, 2, 6), .usb: .init(12, 0, 0)],
@@ -93,8 +93,17 @@ final class CascableCoreCompatibilityAPITests: XCTestCase {
             connectionSpecificFeatures: [.usb: [.rawImageAccess]]
         )
 
+        try testCamera.setUserInfoValue("Hello!", forKey: .comment)
+
         let data = try JSONEncoder().encode(testCamera)
+        let string = String(data: data, encoding: .utf8)!
+        print(string)
         let decodedCamera = try JSONDecoder().decode(CascableCoreSupportedCamera.self, from: data)
         XCTAssertEqual(testCamera, decodedCamera)
+        XCTAssertEqual(try decodedCamera.userInfoValue(for: .comment), "Hello!")
     }
+}
+
+extension CascableCoreSupportedCamera.UserInfoKey where ValueType == String {
+    static let comment = CascableCoreSupportedCamera.UserInfoKey<String>(key: "comment")
 }

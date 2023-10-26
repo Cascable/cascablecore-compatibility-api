@@ -24,7 +24,7 @@ extension URL {
 }
 
 /// A CascableCore version, semver-compatible [major.minor.bugfix].
-public struct CascableCoreVersion: Hashable, Comparable, CustomStringConvertible {
+public struct CascableCoreVersion: Hashable, Comparable, Sendable, CustomStringConvertible {
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
         if lhs.major < rhs.major { return true }
@@ -116,6 +116,7 @@ public struct CascableCoreSupportedCamera: Hashable, CustomStringConvertible {
         self.cascableCoreVersionsRequired = cascableCoreVersionsRequired
         self.features = features
         self.connectionSpecificFeatures = connectionSpecificFeatures
+        self.userInfoStorage = [:]
     }
 
     /// A basic description of the camera.
@@ -161,7 +162,7 @@ public struct CascableCoreSupportedCamera: Hashable, CustomStringConvertible {
     }
 
     /// A camera feature.
-    public struct Feature: Hashable, Codable, ExpressibleByStringLiteral, RawRepresentable, CustomStringConvertible {
+    public struct Feature: Hashable, Codable, Sendable, ExpressibleByStringLiteral, RawRepresentable, CustomStringConvertible {
         public let rawValue: String
 
         public init(stringLiteral value: StringLiteralType) { self.rawValue = value }
@@ -186,7 +187,7 @@ public struct CascableCoreSupportedCamera: Hashable, CustomStringConvertible {
     }
 
     /// A camera connection method.
-    public struct ConnectionMethod: Hashable, Codable, ExpressibleByStringLiteral, RawRepresentable, CustomStringConvertible {
+    public struct ConnectionMethod: Hashable, Codable, Sendable, ExpressibleByStringLiteral, RawRepresentable, CustomStringConvertible {
         public let rawValue: String
 
         public init(stringLiteral value: StringLiteralType) { self.rawValue = value }
@@ -198,17 +199,48 @@ public struct CascableCoreSupportedCamera: Hashable, CustomStringConvertible {
         /// Connecting via USB.
         public static let usb: ConnectionMethod = "usb"
     }
+
+    /// The key type for storing user info in the camera.
+    public struct UserInfoKey<ValueType: Codable>: Sendable {
+        public init(key: String) { self.key = key }
+        public let key: String
+    }
+
+    private var userInfoStorage: [String: CameraUserInfoBox]
+
+    /// Store a value into the camera's user info storage.
+    ///
+    /// - Parameters:
+    ///   - value: The value to store. Pass `nil` to remove the value for that key.
+    ///   - key: The value's key.
+    public mutating func setUserInfoValue<ValueType: Codable>(_ value: ValueType?, forKey key: UserInfoKey<ValueType>) throws {
+        if value == nil {
+            userInfoStorage.removeValue(forKey: key.key)
+        } else {
+            userInfoStorage[key.key] = try CameraUserInfoBox(value: value)
+        }
+    }
+
+    /// Attempt to fetch the value for the given user info storage key.
+    ///
+    /// - Parameter key: The value's key.
+    /// - Returns: The value, or `nil` if no value is stored for that key.
+    /// - Throws: If a decoding error occurs for a stored value for the key, throws the decoding error.
+    public func userInfoValue<ValueType: Codable>(for key: UserInfoKey<ValueType>) throws -> ValueType? {
+        guard let value = userInfoStorage[key.key] else { return nil }
+        return try value.unwrapValue()
+    }
 }
 
 // MARK: - API Helpers
 
-public struct CameraCompatibilityAPIErrorResponseBody: Hashable, Codable {
+public struct CameraCompatibilityAPIErrorResponseBody: Hashable, Sendable, Codable {
     public let reason: String
 }
 
 // MARK: - Custom Codable Implmentations
 
-enum DecodingError: Error {
+enum DecodingError: Error, Sendable {
     case invalidVersionString
 }
 
@@ -248,6 +280,7 @@ extension CascableCoreSupportedCamera: Codable {
         case cascableCoreVersionsRequired
         case features
         case connectionSpecificFeatures
+        case userInfo
     }
 
     public init(from decoder: Decoder) throws {
@@ -257,6 +290,7 @@ extension CascableCoreSupportedCamera: Codable {
         manufacturer = try container.decode(String.self, forKey: .manufacturer)
         additionalSearchTerms = try container.decodeIfPresent([String].self, forKey: .additionalSearchTerms)
         features = try container.decode(Set<Feature>.self, forKey: .features)
+        userInfoStorage = try container.decodeIfPresent([String: CameraUserInfoBox].self, forKey: .userInfo) ?? [:]
 
         // The default Codable implementation encodes non-string–keyed dictionaries as JSON arrays rather than objects.
         // We fixed this in the encode function, and we need to manually deal with it when decoding.
@@ -278,6 +312,7 @@ extension CascableCoreSupportedCamera: Codable {
         try container.encode(manufacturer, forKey: .manufacturer)
         try container.encodeIfPresent(additionalSearchTerms, forKey: .additionalSearchTerms)
         try container.encode(features, forKey: .features)
+        if !userInfoStorage.isEmpty { try container.encode(userInfoStorage, forKey: .userInfo) }
 
         // The default Codable implementation encodes non-string–keyed dictionaries as JSON arrays rather than objects.
         // Manually extrating the raw string value from the keys fixes this.
@@ -287,5 +322,52 @@ extension CascableCoreSupportedCamera: Codable {
         try container.encode(connectionSpecificFeatures.reduce(into: [:], { partialResult, entry in
             partialResult[entry.key.rawValue] = entry.value
         }), forKey: .connectionSpecificFeatures)
+    }
+}
+
+// MARK: - Internal Details
+
+internal final class CameraUserInfoBox: Codable, Equatable, Hashable {
+
+    static func == (lhs: CameraUserInfoBox, rhs: CameraUserInfoBox) -> Bool {
+        return lhs.encodedData == rhs.encodedData
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(encodedData)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case encodedData
+    }
+
+    init<ValueType: Codable>(value: ValueType) throws {
+        self.value = value
+        encodedData = try JSONEncoder().encode(value)
+    }
+
+    init(with data: Data) {
+        encodedData = data
+    }
+
+    private var value: (any Codable)? = nil
+    let encodedData: Data
+
+    func copy() -> CameraUserInfoBox {
+        return CameraUserInfoBox(with: encodedData)
+    }
+
+    enum CameraUserInfoError: Error {
+        case invalidType
+    }
+
+    func unwrapValue<ValueType: Codable>() throws -> ValueType {
+        if let value = value {
+            guard let typedValue = value as? ValueType else { throw CameraUserInfoError.invalidType }
+            return typedValue
+        }
+        let decoded = try JSONDecoder().decode(ValueType.self, from: encodedData)
+        value = decoded
+        return decoded
     }
 }
