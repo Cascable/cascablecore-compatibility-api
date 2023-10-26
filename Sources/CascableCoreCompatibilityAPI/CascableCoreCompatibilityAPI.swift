@@ -337,10 +337,6 @@ internal final class CameraUserInfoBox: Codable, Equatable, Hashable {
         hasher.combine(encodedData)
     }
 
-    enum CodingKeys: String, CodingKey {
-        case encodedData
-    }
-
     init<ValueType: Codable>(value: ValueType) throws {
         self.value = value
         encodedData = try JSONEncoder().encode(value)
@@ -369,5 +365,15 @@ internal final class CameraUserInfoBox: Codable, Equatable, Hashable {
         let decoded = try JSONDecoder().decode(ValueType.self, from: encodedData)
         value = decoded
         return decoded
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        encodedData = try container.decode(Data.self)
+    }
+    
+    final func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(encodedData)
     }
 }
