@@ -2,7 +2,7 @@
 
 The CascableCore Compatibility API is a JSON REST API for getting camera compatibility information for CascableCore. If your app uses CascableCore, you can use this API to build a camera compatibility table in your app.
 
-The dataset that backs this API is the same data that's used by the [Cascable Camera Compatibility website](https://compatibility.cascable.se/). You can also this this [SUPER SECRET LINK](https://compatibility.cascable.se/?enable-developer-mode=1) to enable "developer mode" on that website to display CascableCore versions on each camera's compatibility page, which can be handy for a quick compatibility check without having to use the API.
+The dataset that backs this API is the same data that's used by the [Cascable Camera Compatibility website](https://compatibility.cascable.se/). You can also use this [SUPER SECRET LINK](https://compatibility.cascable.se/?enable-developer-mode=1) to enable "developer mode" on that website to display CascableCore versions on each camera's compatibility page, which can be handy for a quick compatibility check without having to use the API.
 
 **Important:** The compatibility list is updated relatively infrequently. Please respect the `Cache-Control` headers in the responses from this API. We may impose rate limits on clients that don't.
 
