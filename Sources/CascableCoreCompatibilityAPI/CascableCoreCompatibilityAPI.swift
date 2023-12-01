@@ -311,7 +311,7 @@ extension CascableCoreSupportedCamera: Codable {
         try container.encode(modelName, forKey: .modelName)
         try container.encode(manufacturer, forKey: .manufacturer)
         try container.encodeIfPresent(additionalSearchTerms, forKey: .additionalSearchTerms)
-        try container.encode(features, forKey: .features)
+        try container.encode(features.sorted(by: { $0.rawValue < $1.rawValue }), forKey: .features)
         if !userInfoStorage.isEmpty { try container.encode(userInfoStorage, forKey: .userInfo) }
 
         // The default Codable implementation encodes non-string–keyed dictionaries as JSON arrays rather than objects.
@@ -320,7 +320,7 @@ extension CascableCoreSupportedCamera: Codable {
             partialResult[entry.key.rawValue] = entry.value
         }), forKey: .cascableCoreVersionsRequired)
         try container.encode(connectionSpecificFeatures.reduce(into: [:], { partialResult, entry in
-            partialResult[entry.key.rawValue] = entry.value
+            partialResult[entry.key.rawValue] = entry.value.sorted(by: { $0.rawValue < $1.rawValue })
         }), forKey: .connectionSpecificFeatures)
     }
 }
